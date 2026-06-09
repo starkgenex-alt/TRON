@@ -36,8 +36,11 @@ def remote(fn=None, local_first: bool = True, **default_resources):
                 if key in ["local_only", "remote_only", "gpu", "memory_gb", "priority"]:
                     execution_kwargs[key] = kwargs.pop(key)
 
-            local_only = execution_kwargs.get("local_only", False)
-            remote_only = execution_kwargs.get("remote_only", False)
+            # Merge decorator defaults with call-time execution hints
+            resources = {**default_resources, **execution_kwargs}
+
+            local_only = resources.get("local_only", False)
+            remote_only = resources.get("remote_only", False)
 
             # Determine execution strategy
             should_try_local = local_only or (local_first and not remote_only)

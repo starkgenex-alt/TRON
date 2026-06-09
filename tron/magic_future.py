@@ -82,6 +82,8 @@ class MagicFuture:
             if job_status == "completed":
                 result = status.get("result", {})
                 output = result.get("output") or result.get("result")
+                if output is None:
+                    return result
                 return output
 
             if job_status == "failed":
