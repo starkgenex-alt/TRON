@@ -57,13 +57,13 @@ tron.stop_local_worker()
 python -m pip install dist/tron_client-0.1.0-py3-none-any.whl
 ```
 
-If the wheel is published as a GitHub Release asset, developers can install directly from the release URL:
+If you want the published release wheel, install directly from GitHub:
 
 ```bash
-pip install https://github.com/<org>/<repo>/releases/download/v0.1.0/tron_client-0.1.0-py3-none-any.whl
+pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.2/tron_client-0.1.0-py3-none-any.whl
 ```
 
-Once `tron-client` is published, this can become:
+Once `tron-client` is published to PyPI, this can become:
 
 ```bash
 python -m pip install tron-client
