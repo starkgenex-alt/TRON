@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  tron-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "9000:9000"
+    environment:
+      - TRON_PORT=9000
+
+  tron-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      - tron-server
+    environment:
+      - TRON_SERVER=http://tron-server:9000
+    deploy:
+      replicas: 2

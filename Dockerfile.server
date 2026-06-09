@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy whole repo so engine modules/workers are available
+COPY . /app
+
+EXPOSE 9000
+ENV TRON_PORT=9000
+
+CMD ["python", "queue_server.py"]
