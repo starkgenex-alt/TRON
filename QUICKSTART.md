@@ -4,7 +4,7 @@
 
 ```bash
 # Install the TRON SDK from the published release
-pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.2/tron_client-0.1.0-py3-none-any.whl
+pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.3/tron_client-0.1.3-py3-none-any.whl
 ```
 
 If you are working from the repo directly, you can still use:

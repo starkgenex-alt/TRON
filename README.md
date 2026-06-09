@@ -54,13 +54,13 @@ tron.stop_local_worker()
 
 ```bash
 # Local install while the package is not yet published to PyPI
-python -m pip install dist/tron_client-0.1.0-py3-none-any.whl
+python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
 ```
 
 If you want the published release wheel, install directly from GitHub:
 
 ```bash
-pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.2/tron_client-0.1.0-py3-none-any.whl
+pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.3/tron_client-0.1.3-py3-none-any.whl
 ```
 
 Once `tron-client` is published to PyPI, this can become:
@@ -94,7 +94,7 @@ print(result)
 
 Users should only ever do this:
 
-1. install the SDK locally for now: `python -m pip install dist/tron_client-0.1.0-py3-none-any.whl`
+1. install the SDK locally for now: `python -m pip install dist/tron_client-0.1.3-py3-none-any.whl`
    - once published, this becomes: `python -m pip install tron-client`
 2. write Python functions with `@tron.remote`
 3. optionally configure the backend URL with `tron.config(...)`
@@ -162,7 +162,7 @@ If Docker is unstable, use the direct Python run above instead.
 
 Once your team deploys a TRON server, developers:
 
-1. Install the SDK locally for now: `python -m pip install dist/tron_client-0.1.0-py3-none-any.whl`
+1. Install the SDK locally for now: `python -m pip install dist/tron_client-0.1.3-py3-none-any.whl`
    - once published, this becomes: `python -m pip install tron-client`
 2. Get the server URL from your team
 3. Add to code:
@@ -191,7 +191,7 @@ See [USER_GUIDE.md](USER_GUIDE.md) for detailed examples.
 ```
 Developer
     |
-    | python -m pip install dist/tron_client-0.1.0-py3-none-any.whl
+    | python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
     |
     v
 [ @tron.remote decorator ]
@@ -241,7 +241,7 @@ python -m build --sdist --wheel
 Test locally:
 
 ```bash
-python -m pip install dist/tron_client-0.1.0-py3-none-any.whl
+python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
 python -c "import tron; print(tron.__name__)"
 ```
 

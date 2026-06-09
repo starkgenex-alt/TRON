@@ -14,13 +14,13 @@ Instead of writing loops or managing threads, you write normal Python functions 
 
 ```bash
 # Local install while the package is not yet published to PyPI
-python -m pip install dist/tron_client-0.1.0-py3-none-any.whl
+python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
 ```
 
 If the wheel is published as a GitHub Release asset, developers can install directly from that release URL:
 
 ```bash
-pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.2/tron_client-0.1.0-py3-none-any.whl
+pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.3/tron_client-0.1.3-py3-none-any.whl
 ```
 
 Once `tron-client` is published, this can become:
