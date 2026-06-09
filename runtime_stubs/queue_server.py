@@ -24,21 +24,21 @@ from collections import defaultdict
 # ENGINE IMPORTS (SAFE)
 # =========================
 
-from session_manager import SessionManager
-from virtual_memory import VirtualMemory
-from execution_graph import ExecutionGraph
-from routing_engine import RoutingEngine
-from predictor_engine import PredictorEngine
-from swarm_manager import SwarmManager
-from auto_scaler import AutoScaler
-from resurrection_engine import ResurrectionEngine
-from memory_mesh import MemoryMesh
-from stream_engine import StreamEngine
-from simulation_engine import SimulationEngine
-from pricing_engine import PricingEngine
-from market_engine import MarketEngine
-from load_shaper import LoadShaper
-from global_brain import GlobalDecisionBrain
+from tron_runtime.session_manager import SessionManager
+from tron_runtime.virtual_memory import VirtualMemory
+from tron_runtime.execution_graph import ExecutionGraph
+from tron_runtime.routing_engine import RoutingEngine
+from tron_runtime.predictor_engine import PredictorEngine
+from tron_runtime.swarm_manager import SwarmManager
+from tron_runtime.auto_scaler import AutoScaler
+from tron_runtime.resurrection_engine import ResurrectionEngine
+from tron_runtime.memory_mesh import MemoryMesh
+from tron_runtime.stream_engine import StreamEngine
+from tron_runtime.simulation_engine import SimulationEngine
+from tron_runtime.pricing_engine import PricingEngine
+from tron_runtime.market_engine import MarketEngine
+from tron_runtime.load_shaper import LoadShaper
+from tron_runtime.global_brain import GlobalDecisionBrain
 
 # =========================
 # APP

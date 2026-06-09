@@ -37,27 +37,11 @@ py-modules = [
     "job",
     "queue_server",
     "worker",
-    "auto_scaler",
-    "execution_graph",
-    "global_brain",
-    "load_shaper",
-    "market_engine",
-    "memory_mesh",
-    "predictor_engine",
-    "pricing_engine",
-    "resurrection_engine",
-    "routing_engine",
-    "session_manager",
-    "simulation_engine",
-    "stream_engine",
-    "streaming_fallback",
-    "swarm_manager",
-    "virtual_memory",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["tron*", "tkron*"]
+include = ["tron*", "tkron*", "tron_runtime*"]
 
 [project.scripts]
 tron = "tron.cli:main"
