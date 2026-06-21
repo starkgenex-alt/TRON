@@ -250,22 +250,6 @@ If you need a customized enterprise deployment or an automated licensing workflo
 
 ---
 
-### Link your PyPI project to GitHub (recommended)
-
-Make your PyPI project page an active funnel for developers by ensuring packaging metadata points to this repository and uses `README.md` as the project long description.
-
-Update your `pyproject.toml` to include a `readme` reference and `project.urls` (homepage, repo, tracker). Example:
-
-```toml
-readme = "README.md"
-
-[project.urls]
-Homepage = "https://github.com/StarkX-cloud/tron-client"
-Repository = "https://github.com/StarkX-cloud/tron-client"
-Tracker = "https://github.com/StarkX-cloud/tron-client/issues"
-```
-
-Also ensure `long_description` uses `README.md` when using `setuptools` or `twine` upload so PyPI displays the full README with your TRON vs Ray vs Celery matrix and Enterprise contact link.
 
 ## Building the package
 
