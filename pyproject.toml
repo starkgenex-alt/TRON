@@ -16,6 +16,8 @@ authors = [
 Homepage = "https://github.com/StarkX-cloud/tron-client"
 Repository = "https://github.com/StarkX-cloud/tron-client"
 Tracker = "https://github.com/StarkX-cloud/tron-client/issues"
+
+[project]
 keywords = ["tron", "distributed", "python", "workflow", "developer", "local-first"]
 classifiers = [
     "Programming Language :: Python :: 3.12",
