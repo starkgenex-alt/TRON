@@ -42,5 +42,5 @@ print(f.get())  # MagicFuture returns the real result
 
 If you need an on-prem deployment or enterprise SLA, request support here:
 
-https://your-company.example.com/enterprise-contact
+https://github.com/StarkX-cloud/tron-client/issues
 

@@ -246,7 +246,7 @@ Running `tron-client` in a highly regulated banking, FinTech, or sensitive corpo
 
 If you need a customized enterprise deployment or an automated licensing workflow, connect with our engineering desk:
 
-👉 Request Enterprise Support & Deployment: https://your-company.example.com/enterprise-contact
+👉 Request Enterprise Support & Deployment: https://github.com/StarkX-cloud/tron-client/issues
 
 ---
 
