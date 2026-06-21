@@ -1,14 +1,15 @@
 # TRON
 
-**TRON is a self-hosted distributed computing platform.**
+**TRON is an AI Compute Orchestrator for self-hosted Python workloads.**
 
-You run your own TRON server. Your developers point their code at it. Done.
+Build distributed AI and analytics systems without enterprise DevOps. TRON makes remote execution feel like local Python by combining a lightweight SDK, the `@tron.remote` decorator, and the transparent `MagicFuture` engine.
 
-- **SDK:** lightweight client (local wheel install today; future PyPI `tron-client`)
-- **Server:** run it on Cloud Run, Fly.io, Docker, VPS, laptop, wherever
-- **Zero cloud vendor lock-in** — you own the infrastructure
+- **AI-first orchestration:** designed for model scoring, simulation, risk analytics, feature engineering, and ML pipelines
+- **SDK:** lightweight client available via PyPI
+- **Server:** self-hosted on Cloud Run, Fly.io, Docker, VPS, laptop, or any cloud
+- **No vendor lock-in:** your infrastructure, your data, your policies
 
-Make distributed computing feel local and seamless:
+Make distributed AI compute feel local and seamless:
 
 ```python
 import tron
@@ -44,11 +45,25 @@ tron.stop_local_worker()
 
 ## Why TRON?
 
-- **No infrastructure complexity:** One command deploys a full distributed system
-- **Works anywhere:** Cloud, on-prem, laptop, VPS, Kubernetes
-- **Own your data:** Your server, your rules, no vendor lock-in
-- **Scales smoothly:** From local testing to multi-worker production
-- **Feels like native Python:** `@tron.remote`, `.get()`, and you're done
+- **Built for AI teams:** delivers distributed compute without the usual enterprise orchestration overhead
+- **True native Python:** `@tron.remote` functions behave like normal calls, with the engine handling remote execution
+- **Transparent results:** `MagicFuture` resolves results automatically, with no extra `.get()` plumbing in most cases
+- **Self-hosted control:** run your backend on any platform and keep your compute private
+- **No hidden infra:** no Spark clusters, no Kubernetes manifests, no Celery brokers, no result backend tuning
+
+## TRON vs. Ray vs. Celery
+
+| Capability | TRON | Ray | Celery |
+|---|---|---|---|
+| Remote function syntax | `@tron.remote` on a normal Python function | `@ray.remote` plus `.remote()` call | `@app.task` plus `delay()` / `apply_async()` |
+| Result model | `MagicFuture` transparent future with `.get()` and `await` support | Ray ObjectRef with `ray.get()` | AsyncResult with backend and broker configuration |
+| Infrastructure setup | Minimal self-hosted runtime | Ray cluster setup / `ray.init()` | Broker + result backend + worker pool |
+| Configuration complexity | Low | Medium to high | High |
+| Best for | AI compute, batch model scoring, risk/simulation workloads | general distributed Python compute | task queues, background jobs |
+| Deployment | Docker, Cloud Run, VPS, local laptop | Kubernetes, AWS, on-prem cluster | Celery broker and result backend infrastructure |
+| Developer experience | Normal Python function calls | special remote API call syntax | task-oriented API |
+
+TRON is the right fit when your team wants distributed compute power without complex cluster configuration errors. The SDK is lightweight, the compute model is declarative, and the core experience is: write Python, decorate with `@tron.remote`, and let TRON orchestrate the rest.
 
 ## Install the SDK
 
