@@ -10,7 +10,7 @@ pip install tron-client-py
 If you prefer the release wheel on GitHub Releases:
 
 ```bash
-pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.3/tron_client-0.1.3-py3-none-any.whl
+pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.5/tron_client_py-0.1.5-py3-none-any.whl
 ```
 
 ## 3-Minute Tutorial

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tron-client-py"
 version = "0.1.5"
-description = "Local-first Python distributed execution runtime for developers."
+description = "Distributed Python compute orchestration for AI teams: self-hosted task execution, model scoring, inference, and remote function dispatch."
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
@@ -13,19 +13,18 @@ authors = [
 ]
 
 keywords = [
-    "distributed-computing",
-    "task-orchestration",
-    "parallel-processing",
-    "ray-alternative",
-    "celery-alternative",
-    "on-premise-compute",
-    "ai-infrastructure",
-    "lightweight-task-queue",
+    "tron", "distributed-computing", "distributed-python", "task-orchestration",
+    "parallel-processing", "ai-infrastructure", "model-scoring", "inference",
+    "remote-task-execution", "self-hosted", "on-premise-compute", "python-sdk",
+    "data-science", "machine-learning", "batch-inference", "workflow-automation",
+    "ray-alternative", "celery-alternative"
 ]
 classifiers = [
     "Programming Language :: Python :: 3.12",
     "Framework :: AsyncIO",
-    "Topic :: Software Development :: Libraries",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: System :: Distributed Computing",
     "Operating System :: OS Independent",
 ]

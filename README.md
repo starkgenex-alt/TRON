@@ -1,10 +1,19 @@
-# TRON
+# TRON — Lightweight Distributed Compute for AI and Python Developers
 
-**TRON is an AI Compute Orchestrator for self-hosted Python workloads.**
+**TRON is a lightweight AI compute orchestrator and Python SDK for distributed-computing, task-orchestration, and parallel-processing.**
 
 Build distributed AI and analytics systems without enterprise DevOps. TRON makes remote execution feel like local Python by combining a lightweight SDK, the `@tron.remote` decorator, and the transparent `MagicFuture` engine.
 
 - **AI-first orchestration:** designed for model scoring, simulation, risk analytics, feature engineering, and ML pipelines
+- **Problem-first search:** solves distributed Python compute, remote function execution, self-hosted inference, and task orchestration search queries
+- **Easy discovery:** package name and docs are aligned for `tron-client-py`, distributed compute, self-hosted AI, and Python orchestration searches
+
+## Problems TRON solves
+
+- Find TRON when searching for distributed Python compute solutions.
+- Find TRON when you need self-hosted AI inference or model scoring.
+- Find TRON when you want a lightweight alternative to Ray and Celery.
+
 - **SDK:** lightweight client available via PyPI
 - **Server:** self-hosted on Cloud Run, Fly.io, Docker, VPS, laptop, or any cloud
 - **No vendor lock-in:** your infrastructure, your data, your policies
@@ -68,20 +77,20 @@ TRON is the right fit when your team wants distributed compute power without com
 ## Install the SDK
 
 ```bash
-# Local install while the package is not yet published to PyPI
-python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
+## Local install while the package is not yet published to PyPI
+python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl
 ```
 
 If you want the published release wheel, install directly from GitHub:
 
 ```bash
-pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.3/tron_client-0.1.3-py3-none-any.whl
+pip install https://github.com/StarkX-cloud/tron-client/releases/download/v0.1.5/tron_client_py-0.1.5-py3-none-any.whl
 ```
 
-Once `tron-client` is published to PyPI, this can become:
+Once published to PyPI, this can become:
 
 ```bash
-python -m pip install tron-client
+python -m pip install tron-client-py
 ```
 
 If you are developing the repo itself, use:
@@ -109,8 +118,8 @@ print(result)
 
 Users should only ever do this:
 
-1. install the SDK locally for now: `python -m pip install dist/tron_client-0.1.3-py3-none-any.whl`
-   - once published, this becomes: `python -m pip install tron-client`
+1. install the SDK locally for now: `python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl`
+    - once published, this becomes: `python -m pip install tron-client-py`
 2. write Python functions with `@tron.remote`
 3. optionally configure the backend URL with `tron.config(...)`
 4. call `.get()` on futures
@@ -177,8 +186,8 @@ If Docker is unstable, use the direct Python run above instead.
 
 Once your team deploys a TRON server, developers:
 
-1. Install the SDK locally for now: `python -m pip install dist/tron_client-0.1.3-py3-none-any.whl`
-   - once published, this becomes: `python -m pip install tron-client`
+1. Install the SDK locally for now: `python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl`
+    - once published, this becomes: `python -m pip install tron-client-py`
 2. Get the server URL from your team
 3. Add to code:
    ```python
@@ -193,6 +202,17 @@ That file is the backend server implementation, and it is managed by your infras
 
 See [USER_GUIDE.md](USER_GUIDE.md) for detailed examples.
 
+## Troubleshooting — Quick Fixes
+
+### I can't connect to the server
+If `tron.ensure_server()` can't find a server, run `tron.start_local_environment()` or ensure `tron.config(url)` points to your backend. Common fix: open port 9000 and retry.
+
+### Installation issues
+If `pip install tron-client-py` fails while unpublished, install the wheel locally: `python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl`.
+
+### Common error: MagicFuture timeouts
+Increase worker timeout in `tron.config(timeout=...)` or scale your workers.
+
 ## How TRON is structured
 
 - `tron/` — client SDK, `@remote` decorator, `MagicFuture` for transparent `.get()`
@@ -206,7 +226,7 @@ See [USER_GUIDE.md](USER_GUIDE.md) for detailed examples.
 ```
 Developer
     |
-    | python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
+    | python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl
     |
     v
 [ @tron.remote decorator ]
@@ -263,7 +283,7 @@ python -m build --sdist --wheel
 Test locally:
 
 ```bash
-python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
+python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl
 python -c "import tron; print(tron.__name__)"
 ```
 

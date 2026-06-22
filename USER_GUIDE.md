@@ -20,7 +20,7 @@ If you are working from the repo directly, you can still use:
 ```bash
 python -m pip install --upgrade build
 python -m build --sdist --wheel
-python -m pip install dist/tron_client-0.1.3-py3-none-any.whl
+python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl
 ```
 
 ## Developer workflow
