@@ -3,8 +3,8 @@ requires = ["setuptools>=63.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tron-client"
-version = "0.1.4"
+name = "tron-client-py"
+version = "0.1.5"
 description = "Local-first Python distributed execution runtime for developers."
 readme = "README.md"
 requires-python = ">=3.12"
