@@ -246,7 +246,7 @@ Running `tron-client` in a highly regulated banking, FinTech, or sensitive corpo
 
 If you need a customized enterprise deployment or an automated licensing workflow, connect with our engineering desk:
 
-👉 Request Enterprise Support & Deployment: https://tally.so/r/Bz6Lg7
+👉 **[Click Here to Request Automated Enterprise Licensing & Custom Deployment Support](https://tally.so/r/Bz6Lg7)**
 
 ---
 

@@ -46,6 +46,7 @@ dependencies = [
 Homepage = "https://github.com/StarkX-cloud/tron-client"
 Repository = "https://github.com/StarkX-cloud/tron-client"
 Tracker = "https://github.com/StarkX-cloud/tron-client/issues"
+"Enterprise Support" = "https://tally.so/r/Bz6Lg7"
 
 [tool.setuptools]
 py-modules = [
