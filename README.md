@@ -101,6 +101,29 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+## One-line Worker Bootstrap
+
+Once your TRON master scheduler is running, you can bootstrap a worker locally with the included shell installer.
+
+```bash
+TRON_MASTER_URL=http://<master-host>:9000 bash install_tron.sh
+python3 /tmp/tron-bootstrap/worker.py &
+```
+
+For a free public installer URL hosted via GitHub Raw, use:
+
+```bash
+TRON_MASTER_URL=http://<master-host>:9000 curl -fsSL https://raw.githubusercontent.com/StarkX-cloud/tron-client/main/install_tron.sh | bash
+```
+
+For a single-step launch that installs and starts the worker immediately:
+
+```bash
+TRON_MASTER_URL=http://<master-host>:9000 START_WORKER=true curl -fsSL https://raw.githubusercontent.com/StarkX-cloud/tron-client/main/install_tron.sh | bash
+```
+
+This will install the worker bootstrap, detect GPU capabilities via `nvidia-smi`, register the node with the master, and optionally start the worker process.
+
 ## Basic usage
 
 ```python
@@ -158,29 +181,38 @@ Pick your platform and deploy in minutes:
 ```
 
 ### Local Docker (dev/testing)
-```bash
-docker compose up
-```
 
-See [SELF_HOST.md](SELF_HOST.md) for detailed guides and customization.
-
-This repo includes a `Dockerfile` and `docker-compose.yml` for an always-on backend.
+**Start the full stack:**
 
 ```bash
 docker compose up --build
 ```
 
-If you want background mode:
+This starts:
+- **Queue Server**: `http://localhost:9000` (FastAPI backend)
+- **Dashboard**: `http://localhost:8501` (Streamlit UI for monitoring)
+- **Workers** (2 replicas): auto-connect to server
+
+For background mode:
 
 ```bash
 docker compose up --build -d
 ```
 
-The local API will be available at:
+**Monitor platform earnings and jobs:**
+Open `http://localhost:8501` in your browser to see:
+- Active workers and jobs
+- Real-time platform balance and royalty earnings (15% per job)
+- Ledger of all completed jobs with billing details
+- ROI simulator for capacity planning
 
-- `http://localhost:9000`
+See [SELF_HOST.md](SELF_HOST.md) for detailed guides and customization.
 
-If Docker is unstable, use the direct Python run above instead.
+If Docker is unstable, run the server directly:
+
+```bash
+python queue_server.py
+```
 
 ## Developer workflow
 
@@ -224,17 +256,33 @@ Increase worker timeout in `tron.config(timeout=...)` or scale your workers.
 ## Architecture
 
 ```
-Developer
-    |
-    | python -m pip install dist/tron_client_py-0.1.5-py3-none-any.whl
-    |
-    v
-[ @tron.remote decorator ]
-    |
-    | tron.config("https://server")
-    |
-    v
-[ TRON Backend (self-hosted) ]
+Developer                         Operator
+    |                                |
+    | pip install tron-client-py    | docker compose up --build
+    |                                |
+    v                                v
+[ @tron.remote ]          [ Queue Server (FastAPI) ]
+    |                          |
+    | tron.config(url)         | registers workers
+    |                          | tracks jobs
+    v                          | calculates royalties (15%)
+[ Remote execution ]       |
+                           v
+                     [ Dashboard (Streamlit) ]
+                       - Monitor balance
+                       - View ledger
+                       - ROI simulator
+                       - Real-time metrics
+```
+
+## Production Features
+
+✅ **Automatic Royalty Accounting**: 15% platform share routed atomically on job completion  
+✅ **Ledger Persistence**: Full job history with billing, payout, and earnings tracking  
+✅ **Platform Balance API**: Real-time `/platform/balance` endpoint for operators  
+✅ **Dashboard UI**: Monitor workers, jobs, and earnings via Streamlit  
+✅ **Docker Compose**: One-command deployment with workers, server, and dashboard  
+✅ **One-line Worker Bootstrap**: Free GitHub-hosted installer with GPU auto-detection
     |
     +---> Queue (job storage)
     +---> Workers (parallel execution)

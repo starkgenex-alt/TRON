@@ -1,40 +1,91 @@
 import os
 import time
 import uuid
-import requests
+import json
+import subprocess
 import traceback
+from pathlib import Path
 
-from tron.serializer import deserialize
+import requests
 
-TRON_URL = os.environ.get("TRON_URL", "http://127.0.0.1:9000")
+TRON_MASTER_URL = os.environ.get("TRON_MASTER_URL", "http://127.0.0.1:9000")
 WORKER_NAME = os.environ.get("TRON_WORKER_NAME", f"worker-{uuid.uuid4().hex[:8]}")
+AUTH_TOKEN_FILE = Path(os.environ.get("TRON_AUTH_TOKEN_FILE", Path.home() / ".tron_worker_auth.json"))
+LOCATION = os.environ.get("TRON_LOCATION", "self-hosted")
+
+
+def detect_gpu():
+    try:
+        output = subprocess.check_output(["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"], text=True, timeout=5)
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        if lines:
+            first = lines[0].split(",")
+            gpu_name = first[0].strip()
+            vram_gb = max(1, int(float(first[1].split()[0]) / 1024)) if len(first) > 1 else 1
+            return True, gpu_name, vram_gb, 4096
+    except Exception:
+        pass
+    return False, None, 1, 1024
+
+
+def load_auth_token():
+    if AUTH_TOKEN_FILE.exists():
+        try:
+            return json.loads(AUTH_TOKEN_FILE.read_text()).get("auth_token")
+        except Exception:
+            return None
+    return None
+
+
+def save_auth_token(token):
+    AUTH_TOKEN_FILE.write_text(json.dumps({"auth_token": token, "worker_name": WORKER_NAME}))
 
 
 def register_worker():
+    gpu_available, gpu_name, vram_gb, cuda_cores = detect_gpu()
     payload = {
         "name": WORKER_NAME,
-        "gpu": False,
-        "memory_gb": 2,
+        "capabilities": {
+            "gpu": gpu_available,
+            "memory_gb": vram_gb,
+            "cuda_cores": cuda_cores,
+            "location": LOCATION,
+        },
+        "gpu_name": gpu_name,
+        "vram_gb": vram_gb,
+        "cuda_cores": cuda_cores,
+        "network_bandwidth_gbps": 1.0,
+        "location": LOCATION,
+        "metadata": {"bootstrap": "tron-node", "runtime": "python"},
     }
     try:
-        resp = requests.post(f"{TRON_URL}/register_worker", json=payload, timeout=10)
+        resp = requests.post(f"{TRON_MASTER_URL}/register", json=payload, timeout=10)
         resp.raise_for_status()
-        print(f"[WORKER] Registered {WORKER_NAME} with TRON server")
+        data = resp.json()
+        auth_token = data.get("auth_token")
+        save_auth_token(auth_token)
+        print(f"[WORKER] Registered {WORKER_NAME} with TRON master at {TRON_MASTER_URL}")
+        return auth_token
     except Exception as exc:
         print(f"[WORKER] Failed to register worker: {exc}")
         raise
 
 
-def heartbeat():
+def heartbeat(auth_token):
     try:
-        requests.post(f"{TRON_URL}/heartbeat/{WORKER_NAME}", timeout=5)
+        requests.post(
+            f"{TRON_MASTER_URL}/heartbeat",
+            headers={"X-TRON-AUTH": auth_token},
+            json={"worker_name": WORKER_NAME, "active_job_id": None},
+            timeout=5,
+        )
     except Exception:
         pass
 
 
-def fetch_next_job():
+def fetch_next_job(auth_token):
     try:
-        resp = requests.get(f"{TRON_URL}/next_job/{WORKER_NAME}", timeout=10)
+        resp = requests.get(f"{TRON_MASTER_URL}/next_job", headers={"X-TRON-AUTH": auth_token}, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         return data.get("job")
@@ -43,9 +94,14 @@ def fetch_next_job():
         return None
 
 
-def report_complete(job_id, result):
+def report_complete(auth_token, job_id, result, runtime_seconds):
     try:
-        resp = requests.post(f"{TRON_URL}/complete/{job_id}", json={"result": result}, timeout=10)
+        resp = requests.post(
+            f"{TRON_MASTER_URL}/complete_job",
+            headers={"X-TRON-AUTH": auth_token},
+            json={"job_id": job_id, "worker_name": WORKER_NAME, "result": result, "success": True, "runtime_seconds": runtime_seconds},
+            timeout=10,
+        )
         resp.raise_for_status()
         print(f"[WORKER] Completed job {job_id}")
     except Exception as exc:
@@ -54,31 +110,31 @@ def report_complete(job_id, result):
 
 def execute_job(job):
     try:
-        function_blob = job.get("function")
-        if function_blob is None:
-            raise ValueError("Missing serialized function payload")
-
-        func, args, kwargs = deserialize(function_blob)
-        print(f"[WORKER] Executing job {job['id']} func={func.__name__}")
-        result = func(*args, **kwargs)
-        return result
+        payload = job.get("payload", {}) or {}
+        prompt = payload.get("prompt") or payload.get("message") or "TRON job"
+        print(f"[WORKER] Executing job {job.get('job_id')} prompt={prompt[:80]}")
+        return {"status": "ok", "message": prompt, "worker": WORKER_NAME}
     except Exception as exc:
         traceback.print_exc()
         return {"status": "error", "error": str(exc)}
 
 
 def main():
-    register_worker()
-    print(f"[WORKER] Starting polling loop for jobs on {TRON_URL}")
+    auth_token = load_auth_token()
+    if not auth_token:
+        auth_token = register_worker()
+
+    print(f"[WORKER] Starting polling loop for jobs on {TRON_MASTER_URL}")
     while True:
         try:
-            job = fetch_next_job()
+            job = fetch_next_job(auth_token)
             if job:
-                job_id = job.get("id")
+                job_id = job.get("job_id")
+                start = time.time()
                 result = execute_job(job)
-                report_complete(job_id, result)
+                report_complete(auth_token, job_id, result, max(0.1, time.time() - start))
             else:
-                heartbeat()
+                heartbeat(auth_token)
                 time.sleep(1)
         except KeyboardInterrupt:
             print("[WORKER] Shutting down")

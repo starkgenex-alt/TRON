@@ -95,6 +95,11 @@ job_queue = []
 job_store = {}
 workers = {}
 running_jobs = {}
+platform_balance = 0.0
+platform_royalty_rate = 0.15
+platform_earnings = 0.0
+total_billed = 0.0
+total_payout = 0.0
 
 event_bus = defaultdict(list)
 
@@ -344,6 +349,39 @@ def get_queue():
 def get_history():
     return {"jobs": list(job_store.values())}
 
+@app.get("/ledger")
+def get_ledger():
+    ledger = []
+    for job in job_store.values():
+        if job.get("status") != "completed":
+            continue
+        ledger.append({
+            "job_id": job.get("id"),
+            "type": job.get("task_type"),
+            "amount": float(job.get("billed_amount", 0.0)),
+            "payout_amount": float(job.get("payout_amount", 0.0)),
+            "royalty_amount": float(job.get("royalty_amount", 0.0)),
+            "platform_share": float(job.get("platform_share", 0.0)),
+            "timestamp": job.get("submitted_at"),
+            "result": job.get("result"),
+        })
+    return {"ledger": sorted(ledger, key=lambda x: x["timestamp"], reverse=True)}
+
+@app.get("/active_jobs")
+def get_active_jobs():
+    return {"active_jobs": list(running_jobs.values())}
+
+@app.get("/platform/balance")
+def get_platform_balance():
+    return {
+        "platform_balance": platform_balance,
+        "total_billed": total_billed,
+        "total_worker_payout": total_payout,
+        "total_platform_earnings": platform_earnings,
+        "job_count": sum(1 for job in job_store.values() if job.get("status") == "completed"),
+        "currency": "USD"
+    }
+
 # =========================
 # NEXT JOB (STABLE ROUTER CORE)
 # =========================
@@ -451,14 +489,29 @@ def complete(job_id: str, result: dict):
             runtime = time.time() - running_jobs[job_id]["start_time"]
             worker_name = running_jobs[job_id]["worker"]
 
+        billed_amount = round(0.01 + runtime * 0.001, 6)
+        royalty_amount = round(billed_amount * platform_royalty_rate, 6)
+        payout_amount = round(billed_amount - royalty_amount, 6)
+        platform_share = royalty_amount
+
         job_store[job_id].update({
             "status": "completed",
             "result": result,
             "runtime": runtime,
-            "cost": 0.01 + runtime * 0.001
+            "cost": billed_amount,
+            "billed_amount": billed_amount,
+            "payout_amount": payout_amount,
+            "royalty_amount": royalty_amount,
+            "platform_share": platform_share
         })
 
         graph_id = job_store[job_id].get("graph_id")
+
+        global platform_balance, platform_earnings, total_billed, total_payout
+        platform_balance = round(platform_balance + platform_share, 6)
+        platform_earnings = round(platform_earnings + platform_share, 6)
+        total_billed = round(total_billed + billed_amount, 6)
+        total_payout = round(total_payout + payout_amount, 6)
         if graph_id:
             graphs.update_status(graph_id, job_id, "completed")
 

@@ -1,0 +1,3 @@
+stable-baselines3[extra]
+gymnasium
+torch>=2.8

@@ -53,6 +53,9 @@ py-modules = [
     "job",
     "queue_server",
     "worker",
+    "master_scheduler",
+    "tron_enterprise_core",
+    "tron_worker_daemon",
 ]
 
 [tool.setuptools.packages.find]
@@ -61,3 +64,5 @@ include = ["tron*", "tkron*", "tron_runtime*"]
 
 [project.scripts]
 tron = "tron.cli:main"
+tron-master = "master_scheduler:main"
+tron-worker = "tron_worker_daemon:main"
