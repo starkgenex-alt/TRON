@@ -41,6 +41,22 @@ from tron_runtime.load_shaper import LoadShaper
 from tron_runtime.global_brain import GlobalDecisionBrain
 
 # =========================
+# ORCHESTRATOR & GPU IMPORTS
+# =========================
+# Integrated TRON-II & vGPU layers
+try:
+    from tron.orchestrator import TrainingOrchestrator, TrainingConfig
+    HAS_ORCHESTRATOR = True
+except ImportError:
+    HAS_ORCHESTRATOR = False
+
+try:
+    from tron.gpu import VirtualGPUCluster
+    HAS_VGPU = True
+except ImportError:
+    HAS_VGPU = False
+
+# =========================
 # APP
 # =========================
 
@@ -84,6 +100,24 @@ global_brain = GlobalDecisionBrain(
 )
 
 provider_router = None
+
+# Initialize integrated orchestrator & vGPU cluster
+orchestrator = None
+vgpu_cluster = None
+
+if HAS_ORCHESTRATOR:
+    try:
+        orchestrator = TrainingOrchestrator()
+        print("[TRON] ✓ TrainingOrchestrator initialized")
+    except Exception as e:
+        print(f"[TRON] Warning: Could not initialize TrainingOrchestrator: {e}")
+
+if HAS_VGPU:
+    try:
+        vgpu_cluster = VirtualGPUCluster(cluster_name="tron-platform-0")
+        print("[TRON] ✓ VirtualGPUCluster initialized")
+    except Exception as e:
+        print(f"[TRON] Warning: Could not initialize VirtualGPUCluster: {e}")
 
 # =========================
 # STATE MEMORY

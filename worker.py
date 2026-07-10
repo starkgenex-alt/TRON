@@ -8,24 +8,67 @@ from pathlib import Path
 
 import requests
 
+# =========================
+# INTEGRATED TRON LAYERS
+# =========================
+try:
+    from tron.gpu import VirtualGPUCluster, VirtualGPUNode
+    HAS_VGPU = True
+except ImportError:
+    HAS_VGPU = False
+
 TRON_MASTER_URL = os.environ.get("TRON_MASTER_URL", "http://127.0.0.1:9000")
 WORKER_NAME = os.environ.get("TRON_WORKER_NAME", f"worker-{uuid.uuid4().hex[:8]}")
 AUTH_TOKEN_FILE = Path(os.environ.get("TRON_AUTH_TOKEN_FILE", Path.home() / ".tron_worker_auth.json"))
 LOCATION = os.environ.get("TRON_LOCATION", "self-hosted")
 
+# GPU cluster instance for this worker
+gpu_cluster = None
+
 
 def detect_gpu():
+    """Detect GPU hardware via nvidia-smi and register in vGPU cluster if available."""
+    gpu_available = False
+    gpu_name = None
+    vram_gb = 1
+    cuda_cores = 1024
+    
     try:
-        output = subprocess.check_output(["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"], text=True, timeout=5)
+        output = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"],
+            text=True, timeout=5
+        )
         lines = [line.strip() for line in output.splitlines() if line.strip()]
         if lines:
             first = lines[0].split(",")
             gpu_name = first[0].strip()
             vram_gb = max(1, int(float(first[1].split()[0]) / 1024)) if len(first) > 1 else 1
-            return True, gpu_name, vram_gb, 4096
+            gpu_available = True
+            cuda_cores = 4096  # Typical NVIDIA GPU core count
+            
+            # Register in vGPU cluster if available
+            if HAS_VGPU:
+                try:
+                    global gpu_cluster
+                    if gpu_cluster is None:
+                        gpu_cluster = VirtualGPUCluster(cluster_name=f"tron-worker-{WORKER_NAME}")
+                    
+                    node_id = f"node-{WORKER_NAME}"
+                    node = gpu_cluster.register_node(
+                        node_id=node_id,
+                        gpu_name=gpu_name,
+                        vram_gb=vram_gb,
+                        cuda_cores=cuda_cores,
+                        network_bandwidth_gbps=1.0
+                    )
+                    print(f"[WORKER] ✓ GPU registered in vGPU cluster: {node_id}")
+                except Exception as e:
+                    print(f"[WORKER] Warning: Could not register GPU in vGPU cluster: {e}")
+                    
     except Exception:
         pass
-    return False, None, 1, 1024
+    
+    return gpu_available, gpu_name, vram_gb, cuda_cores
 
 
 def load_auth_token():
