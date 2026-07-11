@@ -220,26 +220,67 @@ def get_graph(graph_id: str):
 @app.post("/register_worker")
 def register_worker(worker: dict):
 
+    worker_name = worker.get("name") or str(uuid.uuid4().hex[:8])
+    auth_token = str(uuid.uuid4().hex)
+
     with lock:
-        workers[worker["name"]] = {
-            "gpu": worker.get("gpu", False),
-            "memory_gb": worker.get("memory_gb", 4),
+        workers[worker_name] = {
+            "name": worker_name,
+            "auth_token": auth_token,
+            "gpu": worker.get("gpu") or worker.get("capabilities", {}).get("gpu", False),
+            "gpu_name": worker.get("gpu_name"),
+            "memory_gb": worker.get("memory_gb") or worker.get("capabilities", {}).get("memory_gb", 4),
+            "cuda_cores": worker.get("cuda_cores") or worker.get("capabilities", {}).get("cuda_cores", 1024),
+            "location": worker.get("location", "unknown"),
             "load": 0,
             "status": "idle",
             "last_heartbeat": time.time()
         }
 
-    return {"ok": True}
+    return {
+        "ok": True,
+        "worker_name": worker_name,
+        "auth_token": auth_token
+    }
+
+
+@app.post("/register")
+def register(worker: dict):
+    """Compatibility alias for older worker bootstraps."""
+    return register_worker(worker)
 
 
 @app.post("/heartbeat/{worker_name}")
-def heartbeat(worker_name: str):
-
+def heartbeat(worker_name: str, request: Request, payload: dict = None):
+    """Worker heartbeat with optional auth validation."""
+    
+    auth_token = request.headers.get("X-TRON-AUTH")
+    
     with lock:
-        if worker_name in workers:
-            workers[worker_name]["last_heartbeat"] = time.time()
+        if worker_name not in workers:
+            return {"alive": False, "error": "worker not registered"}, 404
+        
+        worker = workers[worker_name]
+        
+        # Validate auth token if registered
+        if worker.get("auth_token") and auth_token:
+            if auth_token != worker["auth_token"]:
+                return {"alive": False, "error": "invalid auth token"}, 403
+        
+        # Update heartbeat timestamp and active job
+        worker["last_heartbeat"] = time.time()
+        if payload:
+            worker["active_job_id"] = payload.get("active_job_id")
+    
+    return {"alive": True, "worker_name": worker_name}
 
-    return {"alive": True}
+
+@app.post("/heartbeat")
+def heartbeat_alias(payload: dict):
+    worker_name = payload.get("worker_name")
+    if not worker_name:
+        return {"alive": False, "error": "missing worker_name"}
+    return heartbeat(worker_name)
 
 # =========================
 # SUBMIT JOB (CLEAN + SAFE)
@@ -600,6 +641,15 @@ def complete(job_id: str, result: dict):
     })
 
     return {"ok": True}
+
+
+@app.post("/complete_job")
+def complete_job(payload: dict):
+    job_id = payload.get("job_id")
+    result = payload.get("result", {})
+    if not job_id:
+        return {"ok": False, "error": "missing job_id"}
+    return complete(job_id, result)
 
 # =========================
 # STREAM
