@@ -1,5 +1,5 @@
 try:
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import StreamingResponse
     import uvicorn
@@ -55,6 +55,18 @@ try:
     HAS_VGPU = True
 except ImportError:
     HAS_VGPU = False
+
+# =========================
+# BILLING & MONETIZATION IMPORTS
+# =========================
+try:
+    from tron_billing import (
+        APIKeyManager, PricingEngine as BillingPricingEngine, BillingLedger,
+        InvoiceGenerator, UsageTracker, init_billing_db
+    )
+    HAS_BILLING = True
+except ImportError:
+    HAS_BILLING = False
 
 # =========================
 # APP
@@ -118,6 +130,14 @@ if HAS_VGPU:
         print("[TRON] ✓ VirtualGPUCluster initialized")
     except Exception as e:
         print(f"[TRON] Warning: Could not initialize VirtualGPUCluster: {e}")
+
+# Initialize billing engine
+if HAS_BILLING:
+    try:
+        init_billing_db()
+        print("[TRON] ✓ Billing engine initialized")
+    except Exception as e:
+        print(f"[TRON] Warning: Could not initialize billing engine: {e}")
 
 # =========================
 # STATE MEMORY
@@ -523,7 +543,10 @@ def complete(job_id: str, result: dict):
             runtime = time.time() - running_jobs[job_id]["start_time"]
             worker_name = running_jobs[job_id]["worker"]
 
-        billed_amount = round(0.01 + runtime * 0.001, 6)
+        customer_id = job_store[job_id].get("customer_id")
+        expected_cost = job_store[job_id].get("billing_cost")
+
+        billed_amount = round(expected_cost if expected_cost is not None else 0.01 + runtime * 0.001, 6)
         royalty_amount = round(billed_amount * platform_royalty_rate, 6)
         payout_amount = round(billed_amount - royalty_amount, 6)
         platform_share = royalty_amount
@@ -538,6 +561,18 @@ def complete(job_id: str, result: dict):
             "royalty_amount": royalty_amount,
             "platform_share": platform_share
         })
+
+        if HAS_BILLING and customer_id:
+            try:
+                BillingLedger.record_charge(
+                    job_id=job_id,
+                    customer_id=customer_id,
+                    job_type=job_store[job_id].get("task_type", "compute"),
+                    is_gpu=bool(job_store[job_id].get("gpu", False)),
+                    priority=int(job_store[job_id].get("priority", 1))
+                )
+            except Exception as e:
+                print(f"[TRON] Billing record failed for job {job_id}: {e}")
 
         graph_id = job_store[job_id].get("graph_id")
 
@@ -619,6 +654,259 @@ def status(job_id: str):
 def result(job_id: str):
 
     return job_store.get(job_id, {"status": "not_found"})
+
+# =========================
+# CUSTOMER MANAGEMENT & BILLING
+# =========================
+
+@app.post("/admin/customer/create")
+def create_customer(customer: dict):
+    """Admin endpoint: Create new customer."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    name = customer.get("name")
+    email = customer.get("email")
+    company = customer.get("company")
+
+    if not name or not email:
+        return {"error": "Missing required customer name or email"}
+    
+    try:
+        customer_id, api_key = APIKeyManager.create_customer(name, email, company)
+        return {
+            "customer_id": customer_id,
+            "api_key": api_key,
+            "name": name,
+            "email": email
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/admin/customers")
+def list_customers():
+    """Admin endpoint: List all customers."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    try:
+        customers = APIKeyManager.list_customers()
+        return {"customers": customers}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# API Key validation helper
+def get_customer_from_request(request) -> str:
+    """Extract and validate API key from request."""
+    auth_header = request.headers.get("X-API-Key", "")
+    if not auth_header:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            auth_header = auth_header.split(" ", 1)[1].strip()
+
+    if not auth_header:
+        return None
+
+    return APIKeyManager.verify_api_key(auth_header)
+
+
+@app.post("/api/v1/submit")
+async def submit_job_with_billing(request: Request, job: dict):
+    """Submit job with billing (requires API key)."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    # Validate API key
+    customer_id = get_customer_from_request(request)
+    if not customer_id:
+        return {"error": "Invalid or missing API key", "code": "AUTH_FAILED"}
+    
+    try:
+        # Track usage
+        UsageTracker.record_request(customer_id)
+        
+        # Calculate pricing
+        is_gpu = bool(job.get("gpu", False))
+        priority = int(job.get("priority", 1))
+        job_type = job.get("task_type", "compute")
+        
+        # Get cost breakdown
+        total_cost, breakdown = BillingPricingEngine.calculate_job_cost(
+            is_gpu,
+            priority,
+            surge_active=BillingPricingEngine.is_surge_pricing_active()
+        )
+        
+        # Submit job (reuse existing logic)
+        job_id = str(uuid.uuid4())
+        
+        enriched_job = {
+            "id": job_id,
+            "task_type": job_type,
+            "prompt": job.get("prompt", ""),
+            "priority": priority,
+            "gpu": is_gpu,
+            "memory_gb": float(job.get("memory_gb", 1)),
+            "submitted_at": time.time(),
+            "customer_id": customer_id,
+            "billing_cost": total_cost,
+            "estimated_cost": total_cost
+        }
+        
+        with lock:
+            job_queue.append(enriched_job)
+            job_store[job_id] = {
+                "id": job_id,
+                "status": "queued",
+                "submitted_at": time.time(),
+                "customer_id": customer_id,
+                "billing_cost": total_cost,
+                "estimated_cost": total_cost,
+                "total_charge": total_cost
+            }
+        
+        emit(job_id, "queued", enriched_job)
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "cost": breakdown["total_charge"],
+            "platform_share": breakdown["platform_share"],
+            "worker_share": breakdown["worker_share"]
+        }
+    
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/v1/billing/charges")
+async def get_billing_charges(request: Request, days: int = 30):
+    """Get charges for authenticated customer."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    customer_id = get_customer_from_request(request)
+    if not customer_id:
+        return {"error": "Invalid or missing API key"}
+    
+    try:
+        charges = BillingLedger.get_customer_charges(customer_id, days)
+        summary = BillingLedger.get_customer_summary(customer_id)
+        
+        return {
+            "customer_id": customer_id,
+            "period_days": days,
+            "summary": summary,
+            "charges": charges,
+            "charge_count": len(charges)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/v1/billing/summary")
+async def get_billing_summary(request: Request):
+    """Get billing summary for authenticated customer."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    customer_id = get_customer_from_request(request)
+    if not customer_id:
+        return {"error": "Invalid or missing API key"}
+    
+    try:
+        summary = BillingLedger.get_customer_summary(customer_id)
+        usage = UsageTracker.get_usage(customer_id)
+        
+        return {
+            "customer_id": customer_id,
+            "total_jobs": summary["total_jobs"],
+            "total_charged": summary["total_charged"],
+            "total_platform_earnings": summary["total_platform_earnings"],
+            "total_worker_earnings": summary["total_worker_earnings"],
+            "api_requests_24h": usage["total_requests"]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/admin/billing/record")
+def record_charge(job_id: str, customer_id: str, job_type: str, is_gpu: bool, priority: int = 1):
+    """Admin endpoint: Record charge for completed job."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    try:
+        charge_record = BillingLedger.record_charge(
+            job_id, customer_id, job_type, is_gpu, priority
+        )
+        return charge_record
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/admin/billing/invoice/generate")
+def generate_invoice(customer_id: str, month: str):
+    """Admin endpoint: Generate invoice for customer (YYYY-MM format)."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    try:
+        invoice_id = InvoiceGenerator.generate_monthly_invoice(customer_id, month)
+        if not invoice_id:
+            return {"error": "No charges for this period"}
+        
+        return {"invoice_id": invoice_id, "month": month}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/admin/invoices")
+def list_all_invoices():
+    """Admin endpoint: List all invoices."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    try:
+        invoices = InvoiceGenerator.list_invoices()
+        return {"invoices": invoices}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/admin/invoice/{invoice_id}")
+def get_invoice_details(invoice_id: str):
+    """Admin endpoint: Get invoice details."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    try:
+        invoice = InvoiceGenerator.get_invoice(invoice_id)
+        if not invoice:
+            return {"error": "Invoice not found"}
+        return invoice
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/v1/invoices")
+async def get_customer_invoices(request: Request):
+    """Get invoices for authenticated customer."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+    
+    customer_id = get_customer_from_request(request)
+    if not customer_id:
+        return {"error": "Invalid or missing API key"}
+    
+    try:
+        invoices = InvoiceGenerator.list_invoices(customer_id)
+        return {"invoices": invoices}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 # =========================
 # START
