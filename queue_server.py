@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
@@ -75,7 +77,35 @@ except ImportError:
 # APP
 # =========================
 
-app = FastAPI()
+class _FallbackApp:
+    def add_middleware(self, *args, **kwargs):
+        return None
+
+    def get(self, *args, **kwargs):
+        return self._noop
+
+    def post(self, *args, **kwargs):
+        return self._noop
+
+    def put(self, *args, **kwargs):
+        return self._noop
+
+    def delete(self, *args, **kwargs):
+        return self._noop
+
+    def patch(self, *args, **kwargs):
+        return self._noop
+
+    def options(self, *args, **kwargs):
+        return self._noop
+
+    def head(self, *args, **kwargs):
+        return self._noop
+
+    def _noop(self, func):
+        return func
+
+app = FastAPI() if _USE_FASTAPI else _FallbackApp()
 
 app.add_middleware(
     CORSMiddleware,
@@ -1053,7 +1083,7 @@ async def get_customer_invoices(request: Request):
 
 if __name__ == "__main__":
     host = os.environ.get("TRON_HOST", "0.0.0.0")
-    port = int(os.environ.get("TRON_PORT", os.environ.get("PORT", 9000)))
+    port = int(os.environ.get("PORT", os.environ.get("TRON_PORT", 9000)))
     reload_flag = os.environ.get("TRON_RELOAD", "false").lower() in ("1", "true", "yes", "on")
     print(f"TRON CORE STARTING on {host}:{port}")
 
