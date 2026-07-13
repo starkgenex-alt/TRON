@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: tron-master
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn queue_server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: TRON_HOST
+        value: 0.0.0.0
+      - key: TRON_RELOAD
+        value: false
+      - key: TRON_PORT
+        value: 10000

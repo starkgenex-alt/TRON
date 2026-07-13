@@ -304,6 +304,31 @@ Deployment is simple:
 
 No vendor lock-in. You own the infrastructure.
 
+## Billing API
+
+TRON exposes customer billing endpoints for authenticated usage tracking and invoicing.
+
+- `POST /admin/customer/create` — create a new customer and API key
+- `POST /api/v1/submit` — authenticated job submission with `X-API-Key` or `Authorization: Bearer <key>`
+- `GET /api/v1/billing/charges` — list recent customer charges
+- `GET /api/v1/billing/summary` — customer billing summary and usage
+- `GET /api/v1/invoices` — authenticated invoice listing
+
+Example job submission:
+
+```bash
+curl -X POST http://localhost:9000/api/v1/submit   -H "X-API-Key: <customer_api_key>"   -H "Content-Type: application/json"   -d '{
+    "task_type": "compute",
+    "prompt": "run analysis",
+    "priority": 2,
+    "gpu": false,
+    "memory_gb": 2,
+    "function": {"name": "noop", "args": []}
+  }'
+```
+
+Customer billing works with the same TRON job lifecycle as the rest of the platform: jobs are billed on completion, ledger entries are persisted, and invoices can be generated from the billing database.
+
 ### Enterprise, Sovereign & NDPR Compliance Support
 
 Running `tron-client` in a highly regulated banking, FinTech, or sensitive corporate AI environment? We provide enterprise deployment and SLA services that include:
