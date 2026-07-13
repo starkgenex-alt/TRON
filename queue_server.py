@@ -4,9 +4,12 @@ try:
     from fastapi.responses import StreamingResponse
     import uvicorn
     _USE_FASTAPI = True
-except Exception:
-    # FastAPI or Uvicorn not installed — provide a minimal fallback HTTP server
+except Exception as import_error:
+    # FastAPI or Uvicorn failed to import — provide a minimal fallback HTTP server.
     _USE_FASTAPI = False
+    import traceback
+    print(f"[TRON STARTUP] FastAPI import failed: {import_error}")
+    traceback.print_exc()
     import http.server
     import socketserver
     import threading

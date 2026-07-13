@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: uvicorn queue_server:app --host 0.0.0.0 --port $PORT
+    startCommand: python queue_server.py
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
