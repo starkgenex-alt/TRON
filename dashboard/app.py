@@ -330,6 +330,23 @@ def fetch_platform_balance():
         "currency": "USD"
     }
 
+@st.cache_data(ttl=10)
+def fetch_launch_context():
+    try:
+        r = requests.get(f"{API_BASE}/api/v1/launch/context", timeout=TIMEOUT)
+        if r.status_code == 200:
+            return r.json()
+    except:
+        pass
+    return {
+        "status": "launch_ready",
+        "layers": {"core": True, "tronii": True, "vgpu": True},
+        "active_workers": 0,
+        "install_command": "curl -fsSL https://raw.githubusercontent.com/StarkX-cloud/tron-client/main/install_tron.sh | TRON_MASTER_URL=http://127.0.0.1:9000 bash",
+        "dashboard_url": "http://127.0.0.1:8501",
+        "summary": fetch_platform_balance(),
+    }
+
 def license_facility(location: str, total_gpus: int):
     try:
         payload = {"location": location, "total_gpus": total_gpus}
@@ -352,6 +369,7 @@ with st.sidebar:
     racks = fetch_racks()
     jobs = fetch_active_jobs()
     balance = fetch_platform_balance()
+    launch_context = fetch_launch_context()
     latency_estimate = 18 + max(0, len(workers) * 4)
     throughput_estimate = 420 + max(0, len(jobs) * 14)
     col1, col2 = st.columns(2)
@@ -362,6 +380,9 @@ with st.sidebar:
     st.metric("Active Jobs", len(jobs))
     st.metric("Platform Balance", f"${balance.get('platform_balance', 0.0):.4f}")
     st.metric("Total Earnings", f"${balance.get('total_platform_earnings', 0.0):.2f}")
+    st.markdown("### Launch Pack")
+    st.code(launch_context.get("install_command", ""), language="bash")
+    st.caption(f"Layers: core={launch_context.get('layers', {}).get('core')} | tronii={launch_context.get('layers', {}).get('tronii')} | vgpu={launch_context.get('layers', {}).get('vgpu')}")
     st.metric("Latency", f"{latency_estimate} ms", delta="-8 ms")
     st.metric("Throughput", f"{throughput_estimate} ops/s", delta="+6%")
     st.markdown("---")
@@ -398,6 +419,7 @@ with tab1:
     active_jobs = fetch_active_jobs()
     ledger = fetch_ledger()
     balance = fetch_platform_balance()
+    launch_context = fetch_launch_context()
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -424,6 +446,9 @@ with tab1:
         st.metric("Anomaly Risk", f"{anomaly_risk}%", delta="-1%")
 
     st.markdown(f'<div class="dashboard-panel"><p style="margin: 0 0 0.8rem 0; color: #abb3c8;">Forecast horizon: <strong>{forecast_horizon}</strong></p><p style="margin: 0 0 0.8rem 0; color: #abb3c8;">Telemetry mode: <strong>{"Live" if live_telemetry else "Batch"}</strong></p><p style="margin: 0; color: #abb3c8;">Data scope: <strong>{data_scope}</strong></p></div>', unsafe_allow_html=True)
+    st.markdown("### Unified Launch Flow")
+    st.code(launch_context.get("install_command", ""), language="bash")
+    st.caption(f"Status: {launch_context.get('status')} | Active workers: {launch_context.get('active_workers')} | Dashboard: {launch_context.get('dashboard_url')}")
 
     if live_telemetry:
         trend_x = ["T-5", "T-4", "T-3", "T-2", "T-1", "Now"]

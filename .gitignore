@@ -9,3 +9,6 @@ venv/
 .venv-1
 .venv-2
 .venv-3
+*.db
+*.sqlite3
+tron_*.db

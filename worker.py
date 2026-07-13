@@ -102,7 +102,7 @@ def register_worker():
         "metadata": {"bootstrap": "tron-node", "runtime": "python"},
     }
     try:
-        resp = requests.post(f"{TRON_MASTER_URL}/register", json=payload, timeout=10)
+        resp = requests.post(f"{TRON_MASTER_URL}/register_worker", json=payload, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         auth_token = data.get("auth_token")
@@ -117,7 +117,7 @@ def register_worker():
 def heartbeat(auth_token):
     try:
         requests.post(
-            f"{TRON_MASTER_URL}/heartbeat",
+            f"{TRON_MASTER_URL}/heartbeat/{WORKER_NAME}",
             headers={"X-TRON-AUTH": auth_token},
             json={"worker_name": WORKER_NAME, "active_job_id": None},
             timeout=5,
@@ -128,7 +128,7 @@ def heartbeat(auth_token):
 
 def fetch_next_job(auth_token):
     try:
-        resp = requests.get(f"{TRON_MASTER_URL}/next_job", headers={"X-TRON-AUTH": auth_token}, timeout=10)
+        resp = requests.get(f"{TRON_MASTER_URL}/next_job/{WORKER_NAME}", headers={"X-TRON-AUTH": auth_token}, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         return data.get("job")
@@ -140,9 +140,9 @@ def fetch_next_job(auth_token):
 def report_complete(auth_token, job_id, result, runtime_seconds):
     try:
         resp = requests.post(
-            f"{TRON_MASTER_URL}/complete_job",
+            f"{TRON_MASTER_URL}/complete/{job_id}",
             headers={"X-TRON-AUTH": auth_token},
-            json={"job_id": job_id, "worker_name": WORKER_NAME, "result": result, "success": True, "runtime_seconds": runtime_seconds},
+            json={"result": result},
             timeout=10,
         )
         resp.raise_for_status()

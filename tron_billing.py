@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Tuple
 
+from payment_providers import router as payment_router
+
 # =========================
 # DATABASE
 # =========================
@@ -32,7 +34,8 @@ def init_billing_db():
             api_key TEXT UNIQUE NOT NULL,
             api_key_created_at REAL,
             created_at REAL,
-            status TEXT DEFAULT 'active'
+            status TEXT DEFAULT 'active',
+            stripe_connect_account_id TEXT
         )
     """)
     
@@ -53,6 +56,8 @@ def init_billing_db():
             worker_share REAL,
             charged_at REAL,
             invoice_id TEXT,
+            stripe_transfer_id TEXT,
+            stripe_transfer_status TEXT,
             FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
         )
     """)
@@ -67,12 +72,24 @@ def init_billing_db():
             total_charged REAL,
             platform_share REAL,
             status TEXT DEFAULT 'draft',
+            connected_account_id TEXT,
             created_at REAL,
             due_date REAL,
             paid_at REAL,
             FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
         )
     """)
+
+    # Add missing columns for backwards compatibility
+    customer_columns = [row[1] for row in c.execute("PRAGMA table_info(customers)")]
+    if "stripe_connect_account_id" not in customer_columns:
+        c.execute("ALTER TABLE customers ADD COLUMN stripe_connect_account_id TEXT")
+
+    ledger_columns = [row[1] for row in c.execute("PRAGMA table_info(billing_ledger)")]
+    if "stripe_transfer_id" not in ledger_columns:
+        c.execute("ALTER TABLE billing_ledger ADD COLUMN stripe_transfer_id TEXT")
+    if "stripe_transfer_status" not in ledger_columns:
+        c.execute("ALTER TABLE billing_ledger ADD COLUMN stripe_transfer_status TEXT")
     
     # API rate limits
     c.execute("""
@@ -165,7 +182,8 @@ class APIKeyManager:
     def create_customer(
         name: str,
         email: str,
-        company: Optional[str] = None
+        company: Optional[str] = None,
+        stripe_connect_account_id: Optional[str] = None
     ) -> Tuple[str, str]:
         """Create new customer and API key."""
         init_billing_db()
@@ -179,9 +197,9 @@ class APIKeyManager:
         
         c.execute("""
             INSERT INTO customers 
-            (customer_id, name, email, company, api_key, api_key_created_at, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (customer_id, name, email, company, api_key, now, now))
+            (customer_id, name, email, company, api_key, api_key_created_at, created_at, stripe_connect_account_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (customer_id, name, email, company, api_key, now, now, stripe_connect_account_id))
         
         conn.commit()
         conn.close()
@@ -217,7 +235,7 @@ class APIKeyManager:
         c = conn.cursor()
         
         c.execute("""
-            SELECT customer_id, name, email, company, created_at, status
+            SELECT customer_id, name, email, company, created_at, status, stripe_connect_account_id
             FROM customers
             ORDER BY created_at DESC
         """)
@@ -230,11 +248,25 @@ class APIKeyManager:
                 "email": row[2],
                 "company": row[3],
                 "created_at": row[4],
-                "status": row[5]
+                "status": row[5],
+                "stripe_connect_account_id": row[6]
             })
         
         conn.close()
         return customers
+
+    @staticmethod
+    def update_stripe_account(customer_id: str, stripe_connect_account_id: str) -> None:
+        """Associate a Stripe connected account with a customer."""
+        init_billing_db()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute(
+            "UPDATE customers SET stripe_connect_account_id = ? WHERE customer_id = ?",
+            (stripe_connect_account_id, customer_id)
+        )
+        conn.commit()
+        conn.close()
 
 
 # =========================
@@ -250,13 +282,30 @@ class BillingLedger:
         customer_id: str,
         job_type: str,
         is_gpu: bool,
-        priority: int = 1
+        priority: int = 1,
+        worker_stripe_account_id: Optional[str] = None
     ) -> Dict:
-        """Record job completion charge."""
+        """Record job completion charge and optionally send worker payout."""
         init_billing_db()
         
         # Calculate cost
         total_charge, breakdown = PricingEngine.calculate_job_cost(is_gpu, priority)
+        payout_reference = None
+        payout_status = None
+        
+        if worker_stripe_account_id:
+            try:
+                transfer_result = payment_router.payout_worker(
+                    breakdown["worker_share"],
+                    worker_stripe_account_id,
+                    metadata={"job_id": job_id, "customer_id": customer_id}
+                )
+                payout_reference = transfer_result.get("reference") or transfer_result.get("transfer_id")
+                payout_status = transfer_result.get("status")
+            except Exception as e:
+                print(f"[TRON] Payout failed for job {job_id}: {e}")
+                payout_reference = None
+                payout_status = "failed"
         
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
@@ -265,8 +314,8 @@ class BillingLedger:
             INSERT INTO billing_ledger
             (job_id, customer_id, job_type, is_gpu, priority, 
              base_rate, gpu_multiplier, priority_multiplier, 
-             total_charge, platform_share, worker_share, charged_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             total_charge, platform_share, worker_share, charged_at, stripe_transfer_id, stripe_transfer_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             job_id, customer_id, job_type, is_gpu, priority,
             breakdown["base_rate"],
@@ -275,7 +324,9 @@ class BillingLedger:
             breakdown["total_charge"],
             breakdown["platform_share"],
             breakdown["worker_share"],
-            time.time()
+            time.time(),
+            payout_reference,
+            payout_status
         ))
         
         conn.commit()
@@ -286,8 +337,23 @@ class BillingLedger:
             "customer_id": customer_id,
             "charge": breakdown["total_charge"],
             "platform_share": breakdown["platform_share"],
-            "worker_share": breakdown["worker_share"]
+            "worker_share": breakdown["worker_share"],
+            "stripe_transfer_id": payout_reference,
+            "stripe_transfer_status": payout_status
         }
+
+    @staticmethod
+    def create_stripe_transfer(
+        destination_account_id: str,
+        amount_usd: float,
+        description: str
+    ) -> Dict[str, str]:
+        """Backward-compatible wrapper for payout routing."""
+        return payment_router.payout_worker(
+            amount_usd,
+            destination_account_id,
+            metadata={"description": description}
+        )
     
     @staticmethod
     def get_customer_charges(
@@ -304,7 +370,7 @@ class BillingLedger:
         
         c.execute("""
             SELECT job_id, job_type, is_gpu, priority, total_charge, 
-                   platform_share, worker_share, charged_at
+                   platform_share, worker_share, charged_at, stripe_transfer_id, stripe_transfer_status
             FROM billing_ledger
             WHERE customer_id = ? AND charged_at > ?
             ORDER BY charged_at DESC
@@ -320,7 +386,9 @@ class BillingLedger:
                 "charge": row[4],
                 "platform_share": row[5],
                 "worker_share": row[6],
-                "timestamp": row[7]
+                "timestamp": row[7],
+                "stripe_transfer_id": row[8],
+                "stripe_transfer_status": row[9]
             })
         
         conn.close()

@@ -72,7 +72,7 @@ def register():
         'location': LOCATION,
         'metadata': {'bootstrap': 'tron-bootstrap', 'runtime': 'python'},
     }
-    r = requests.post(f"{TRON_MASTER_URL}/register", json=payload, timeout=10)
+    r = requests.post(f"{TRON_MASTER_URL}/register_worker", json=payload, timeout=10)
     r.raise_for_status()
     data = r.json()
     auth = {'worker_name': data.get('worker_name'), 'auth_token': data.get('auth_token')}
@@ -85,7 +85,7 @@ def heartbeat_loop(auth):
     payload = {'worker_name': auth['worker_name'], 'active_job_id': None}
     while True:
         try:
-            r = requests.post(f"{TRON_MASTER_URL}/heartbeat", json=payload, headers=headers, timeout=10)
+            r = requests.post(f"{TRON_MASTER_URL}/heartbeat/{auth['worker_name']}", json=payload, headers=headers, timeout=10)
             if r.ok:
                 print(f"[TRON] heartbeat ok: {time.strftime('%X')}")
             else:

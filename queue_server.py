@@ -187,6 +187,17 @@ def home():
 def health():
     return {"status": "ok"}
 
+@app.get("/api/v1/payments/config")
+def payment_config():
+    """Return the payment provider configuration currently available."""
+    return {
+        "provider": getattr(__import__("payment_providers", fromlist=["router"]), "router").get_default_provider(),
+        "stripe_configured": bool(os.environ.get("STRIPE_API_KEY")),
+        "paystack_configured": bool(os.environ.get("PAYSTACK_SECRET_KEY")),
+        "flutterwave_configured": bool(os.environ.get("FLUTTERWAVE_SECRET_KEY")),
+        "stablecoin_configured": bool(os.environ.get("STABLECOIN_PRIVATE_KEY")),
+    }
+
 # =========================
 # SESSIONS
 # =========================
@@ -232,6 +243,7 @@ def register_worker(worker: dict):
             "memory_gb": worker.get("memory_gb") or worker.get("capabilities", {}).get("memory_gb", 4),
             "cuda_cores": worker.get("cuda_cores") or worker.get("capabilities", {}).get("cuda_cores", 1024),
             "location": worker.get("location", "unknown"),
+            "stripe_connect_account_id": worker.get("stripe_connect_account_id") or worker.get("stripe_account_id"),
             "load": 0,
             "status": "idle",
             "last_heartbeat": time.time()
@@ -466,16 +478,61 @@ def get_ledger():
 def get_active_jobs():
     return {"active_jobs": list(running_jobs.values())}
 
-@app.get("/platform/balance")
-def get_platform_balance():
+def build_royalty_summary():
+    completed_jobs = [job for job in job_store.values() if job.get("status") == "completed"]
+    total_billed = sum(float(job.get("billed_amount", 0.0)) for job in completed_jobs)
+    total_platform_earnings = sum(float(job.get("platform_share", 0.0)) for job in completed_jobs)
+    total_worker_payout = sum(float(job.get("payout_amount", 0.0)) for job in completed_jobs)
     return {
-        "platform_balance": platform_balance,
-        "total_billed": total_billed,
-        "total_worker_payout": total_payout,
-        "total_platform_earnings": platform_earnings,
-        "job_count": sum(1 for job in job_store.values() if job.get("status") == "completed"),
+        "platform_balance": round(platform_balance, 6),
+        "total_billed": round(total_billed, 6),
+        "total_worker_payout": round(total_worker_payout, 6),
+        "total_platform_earnings": round(total_platform_earnings, 6),
+        "completed_jobs": len(completed_jobs),
         "currency": "USD"
     }
+
+def build_launch_context():
+    worker_snapshot = list(workers.values())
+    active_worker_count = len(worker_snapshot)
+    layers = {
+        "core": True,
+        "tronii": True,
+        "vgpu": True,
+    }
+    return {
+        "status": "launch_ready",
+        "layers": layers,
+        "active_workers": active_worker_count,
+        "install_command": "curl -fsSL https://raw.githubusercontent.com/StarkX-cloud/tron-client/main/install_tron.sh | TRON_MASTER_URL=http://127.0.0.1:9000 bash",
+        "dashboard_url": "http://127.0.0.1:8501",
+        "summary": build_royalty_summary(),
+    }
+
+@app.get("/platform/balance")
+def get_platform_balance():
+    return build_royalty_summary()
+
+@app.get("/api/v1/launch/context")
+def get_launch_context():
+    return build_launch_context()
+
+@app.post("/api/v1/payouts/trigger")
+def trigger_payout(payload: dict):
+    """Trigger a payout for a completed job using the active payment provider."""
+    job_id = payload.get("job_id")
+    recipient = payload.get("recipient")
+    amount = payload.get("amount")
+
+    if not job_id or not recipient or amount is None:
+        return {"ok": False, "error": "job_id, recipient, and amount are required"}
+
+    try:
+        from payment_providers import router as payment_router
+        result = payment_router.payout_worker(float(amount), recipient, metadata={"job_id": job_id})
+        return {"ok": True, "job_id": job_id, "result": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 # =========================
 # NEXT JOB (STABLE ROUTER CORE)
@@ -604,13 +661,17 @@ def complete(job_id: str, result: dict):
         })
 
         if HAS_BILLING and customer_id:
+            worker_stripe_account_id = None
+            if worker_name:
+                worker_stripe_account_id = workers.get(worker_name, {}).get("stripe_connect_account_id")
             try:
                 BillingLedger.record_charge(
                     job_id=job_id,
                     customer_id=customer_id,
                     job_type=job_store[job_id].get("task_type", "compute"),
                     is_gpu=bool(job_store[job_id].get("gpu", False)),
-                    priority=int(job_store[job_id].get("priority", 1))
+                    priority=int(job_store[job_id].get("priority", 1)),
+                    worker_stripe_account_id=worker_stripe_account_id
                 )
             except Exception as e:
                 print(f"[TRON] Billing record failed for job {job_id}: {e}")
@@ -722,13 +783,15 @@ def create_customer(customer: dict):
     if not name or not email:
         return {"error": "Missing required customer name or email"}
     
+    stripe_connect_account_id = customer.get("stripe_connect_account_id")
     try:
-        customer_id, api_key = APIKeyManager.create_customer(name, email, company)
+        customer_id, api_key = APIKeyManager.create_customer(name, email, company, stripe_connect_account_id)
         return {
             "customer_id": customer_id,
             "api_key": api_key,
             "name": name,
-            "email": email
+            "email": email,
+            "stripe_connect_account_id": stripe_connect_account_id
         }
     except Exception as e:
         return {"error": str(e)}
@@ -743,6 +806,29 @@ def list_customers():
     try:
         customers = APIKeyManager.list_customers()
         return {"customers": customers}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/admin/customer/update_stripe_account")
+def update_customer_stripe_account(customer: dict):
+    """Admin endpoint: Associate a Stripe connected account with a customer."""
+    if not HAS_BILLING:
+        return {"error": "Billing not enabled"}
+
+    customer_id = customer.get("customer_id")
+    stripe_connect_account_id = customer.get("stripe_connect_account_id")
+
+    if not customer_id or not stripe_connect_account_id:
+        return {"error": "Missing customer_id or stripe_connect_account_id"}
+
+    try:
+        APIKeyManager.update_stripe_account(customer_id, stripe_connect_account_id)
+        return {
+            "ok": True,
+            "customer_id": customer_id,
+            "stripe_connect_account_id": stripe_connect_account_id
+        }
     except Exception as e:
         return {"error": str(e)}
 
