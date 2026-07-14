@@ -103,26 +103,35 @@ pip install -r requirements.txt
 
 ## One-line Worker Bootstrap
 
-Once your TRON master scheduler is running, you can bootstrap a worker locally with the included shell installer.
+Once your TRON master is running, you can bootstrap a worker with the one-liner installers below.
+
+### Linux / macOS (bash)
 
 ```bash
-TRON_MASTER_URL=http://<master-host>:9000 bash install_tron.sh
-python3 /tmp/tron-bootstrap/worker.py &
+curl -fsSL https://raw.githubusercontent.com/starkgenex-alt/TRON/main/install_tron.sh | TRON_MASTER_URL=https://<your-tron-master>.onrender.com START_WORKER=true bash
 ```
 
-For a free public installer URL hosted via GitHub Raw, use:
+### Windows PowerShell
+
+```powershell
+$env:TRON_MASTER_URL='https://<your-tron-master>.onrender.com'
+$env:START_WORKER='true'
+python install_tron.py
+```
+
+These installers will:
+- detect GPU support with `nvidia-smi`
+- register the worker with the master
+- optionally start the worker process in the background
+
+If you want to inspect the script first, use:
 
 ```bash
-TRON_MASTER_URL=http://<master-host>:9000 curl -fsSL https://raw.githubusercontent.com/StarkX-cloud/tron-client/main/install_tron.sh | bash
+curl -fsSL https://raw.githubusercontent.com/starkgenex-alt/TRON/main/install_tron.sh -o install_tron.sh
+less install_tron.sh
 ```
 
-For a single-step launch that installs and starts the worker immediately:
-
-```bash
-TRON_MASTER_URL=http://<master-host>:9000 START_WORKER=true curl -fsSL https://raw.githubusercontent.com/StarkX-cloud/tron-client/main/install_tron.sh | bash
-```
-
-This will install the worker bootstrap, detect GPU capabilities via `nvidia-smi`, register the node with the master, and optionally start the worker process.
+For a local master, replace the Render URL with `http://127.0.0.1:9000`.
 
 ## Basic usage
 
